@@ -6,7 +6,8 @@ import java.util.*;
  * CSVService.java
  * by Andrew Goodman
  * 
- * This service calculates statistics on CSV data: mean, median, min, max, and standard deviation.
+ * This service calculates statistics on CSV data: mean, median, min, max, and
+ * standard deviation.
  * 
  * How it works:
  * 1. Sends UDP heartbeats to the server every 15-30 seconds
@@ -17,18 +18,38 @@ public class CSVService {
 
     // Service configuration
     static String NODE_ID = "CSVNode1";
-    static int MY_PORT = 5102;                    // Port this service listens on
-    static String SERVER_IP = "127.0.0.1";        // Main server address
-    static int SERVER_UDP_PORT = 5001;            // Port for sending heartbeats
-    
+    private static int MY_PORT;
+    private static String SERVER_IP;
+    private static int SERVER_UDP_PORT;
+
     static volatile boolean running = true;
 
     public static void main(String[] args) {
+
+        // Load config.properties
+        Properties config = new Properties();
+        try (FileInputStream fis = new FileInputStream("config.properties")) {
+            config.load(fis);
+        } catch (IOException e) {
+            System.out.println("Failed to load config.properties");
+            e.printStackTrace();
+            return; // exit if config not found
+        }
+
+        // Initialize variables from config
+        MY_PORT = Integer.parseInt(config.getProperty("my.port"));
+        SERVER_IP = config.getProperty("server.ip");
+        SERVER_UDP_PORT = Integer.parseInt(config.getProperty("server.udp.port"));
+
         // Allow command line args to override defaults
-        if (args.length >= 1) NODE_ID = args[0];
-        if (args.length >= 2) MY_PORT = Integer.parseInt(args[1]);
-        if (args.length >= 3) SERVER_IP = args[2];
-        if (args.length >= 4) SERVER_UDP_PORT = Integer.parseInt(args[3]);
+        if (args.length >= 1)
+            NODE_ID = args[0];
+        if (args.length >= 2)
+            MY_PORT = Integer.parseInt(args[1]);
+        if (args.length >= 3)
+            SERVER_IP = args[2];
+        if (args.length >= 4)
+            SERVER_UDP_PORT = Integer.parseInt(args[3]);
 
         System.out.println("=== CSV STATISTICS SERVICE ===");
         System.out.println("Node ID: " + NODE_ID);
@@ -38,7 +59,7 @@ public class CSVService {
 
         // Start heartbeat thread in the background
         new Thread(CSVService::sendHeartbeats).start();
-        
+
         // Listen for incoming task requests
         listenForTasks();
     }
@@ -98,7 +119,7 @@ public class CSVService {
             // Read the operation request (MEAN, MEDIAN, ALL, etc.)
             String request = in.readUTF();
             String[] parts = request.split("\\|");
-            String operation = parts[0];  // MEAN, MEDIAN, ALL, etc.
+            String operation = parts[0]; // MEAN, MEDIAN, ALL, etc.
             System.out.println("[Task] Operation: " + operation);
 
             // Read the CSV data
@@ -165,7 +186,8 @@ public class CSVService {
         // Calculate and output the requested statistics
         for (int col = 0; col < numCols; col++) {
             List<Double> values = columns.get(col);
-            if (values.isEmpty()) continue;
+            if (values.isEmpty())
+                continue;
 
             result.append("--- ").append(headers[col].trim()).append(" ---\n");
 
@@ -190,12 +212,13 @@ public class CSVService {
         return result.toString();
     }
 
-    // Statistics Functions 
+    // Statistics Functions
 
     // Calculates the mean (average) of a list of values
     static double mean(List<Double> values) {
         double sum = 0;
-        for (double v : values) sum += v;
+        for (double v : values)
+            sum += v;
         return sum / values.size();
     }
 
@@ -205,9 +228,9 @@ public class CSVService {
         Collections.sort(sorted);
         int n = sorted.size();
         if (n % 2 == 0) {
-            return (sorted.get(n/2 - 1) + sorted.get(n/2)) / 2.0;
+            return (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2.0;
         } else {
-            return sorted.get(n/2);
+            return sorted.get(n / 2);
         }
     }
 

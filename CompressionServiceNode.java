@@ -6,15 +6,30 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+import java.util.Properties;
 
 public class CompressionServiceNode {
 
-    private static final int TCP_PORT = 3000;
-
-    private static final String SERVER_HOST = "172.31.44.92";
-    private static final int SERVER_PORT = 5001;
+    private static int TCP_PORT;
+    private static String SERVER_HOST;
+    private static int SERVER_PORT;
 
     public static void main(String[] args) throws Exception {
+
+        // Load config.properties
+        Properties config = new Properties();
+        try (FileInputStream fis = new FileInputStream("config.properties")) {
+            config.load(fis);
+        } catch (IOException e) {
+            System.out.println("Failed to load config.properties");
+            e.printStackTrace();
+            return; // exit if config not found
+        }
+
+        // Initialize variables from config
+        TCP_PORT = Integer.parseInt(config.getProperty("tcp.port"));
+        SERVER_HOST = config.getProperty("server.host");
+        SERVER_PORT = Integer.parseInt(config.getProperty("server.port"));
 
         // Start heartbeat thread
         startHeartbeat();

@@ -1,10 +1,9 @@
-package cluster;
-
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Random;
+import java.util.Properties;
 
 /**
  * Service Node: Base64 Encode / Decode
@@ -15,16 +14,30 @@ public class Base64ServiceNode {
     private static final String NODE_ID = "SN1";
     private static final String SERVICE = "BASE64";
 
-    private static final String SERVER_IP = "172.31.44.92";
-    private static final int SERVER_UDP_PORT = 5001;
-
-    private static final int SN_TCP_PORT = 6001;
+    private static String SERVER_IP;
+    private static int SERVER_UDP_PORT;
+    private static int SN_TCP_PORT;
 
     // ==================
 
     public static void main(String[] args) throws Exception {
 
         System.out.println("Starting Base64 Service Node...");
+
+        // Load config.properties
+        Properties config = new Properties();
+        try (FileInputStream fis = new FileInputStream("config.properties")) {
+            config.load(fis);
+        } catch (IOException e) {
+            System.out.println("Failed to load config.properties");
+            e.printStackTrace();
+            return; // exit if config not found
+        }
+
+        // Initialize variables from config
+        SERVER_IP = config.getProperty("server.ip");
+        SERVER_UDP_PORT = Integer.parseInt(config.getProperty("server.udp.port"));
+        SN_TCP_PORT = Integer.parseInt(config.getProperty("sn.tcp.port"));
 
         // Start heartbeat
         new Thread(new HeartbeatSender()).start();
@@ -49,16 +62,12 @@ public class Base64ServiceNode {
         }
     }
 
-
     private static void handleClient(Socket socket) {
 
         try (
-            BufferedReader in =
-                new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            BufferedWriter out =
-                new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()))
-        ) {
+                BufferedWriter out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()))) {
 
             /*
              * Protocol:
@@ -68,7 +77,8 @@ public class Base64ServiceNode {
 
             String line = in.readLine();
 
-            if (line == null) return;
+            if (line == null)
+                return;
 
             String[] parts = line.split("\\|", 2);
 
@@ -84,8 +94,7 @@ public class Base64ServiceNode {
 
             } else if ("DECODE".equals(command)) {
 
-                byte[] decoded =
-                        Base64.getDecoder().decode(data);
+                byte[] decoded = Base64.getDecoder().decode(data);
 
                 result = new String(decoded, StandardCharsets.UTF_8);
 
@@ -104,10 +113,12 @@ public class Base64ServiceNode {
 
         } finally {
 
-            try { socket.close(); } catch (Exception ignored) {}
+            try {
+                socket.close();
+            } catch (Exception ignored) {
+            }
         }
     }
-
 
     /* ================= HEARTBEAT ================= */
 
@@ -122,28 +133,24 @@ public class Base64ServiceNode {
 
                 while (true) {
 
-                    String msg =
-                            "HEARTBEAT|" +
+                    String msg = "HEARTBEAT|" +
                             NODE_ID + "|" +
                             SERVICE + "|" +
                             SN_TCP_PORT;
 
                     byte[] data = msg.getBytes();
 
-                    DatagramPacket packet =
-                        new DatagramPacket(
+                    DatagramPacket packet = new DatagramPacket(
                             data,
                             data.length,
                             InetAddress.getByName(SERVER_IP),
-                            SERVER_UDP_PORT
-                        );
+                            SERVER_UDP_PORT);
 
                     socket.send(packet);
 
                     System.out.println("Sent heartbeat");
 
-                    int wait =
-                        15000 + rand.nextInt(15000);
+                    int wait = 15000 + rand.nextInt(15000);
 
                     Thread.sleep(wait);
                 }

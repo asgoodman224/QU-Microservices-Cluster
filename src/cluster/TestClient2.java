@@ -14,31 +14,33 @@ import javax.crypto.spec.SecretKeySpec;
  * Talks to ServerMain on TCP port 5100 using the server's binary protocol.
  *
  * Supported services:
- *   - CSV_STATS
- *   - IMAGE_TRANSFORM
- *   - BASE64
- *   - compression
- *   - hmac_verify
+ * - CSV_STATS
+ * - IMAGE_TRANSFORM
+ * - BASE64
+ * - compression
+ * - hmac_verify
  *
  * Examples:
- *   java cluster.TestClient list 172.31.44.92 5100
+ * java cluster.TestClient list 172.31.44.92 5100
  *
- *   java cluster.TestClient csv 172.31.44.92 5100 all data.csv
- *   java cluster.TestClient csv 172.31.44.92 5100 mean data.csv
+ * java cluster.TestClient csv 172.31.44.92 5100 all data.csv
+ * java cluster.TestClient csv 172.31.44.92 5100 mean data.csv
  *
- *   java cluster.TestClient image 172.31.44.92 5100 grayscale photo.png
- *   java cluster.TestClient image 172.31.44.92 5100 resize photo.png 400x300
- *   java cluster.TestClient image 172.31.44.92 5100 rotate photo.png 90
- *   java cluster.TestClient image 172.31.44.92 5100 thumbnail photo.png 200
+ * java cluster.TestClient image 172.31.44.92 5100 grayscale photo.png
+ * java cluster.TestClient image 172.31.44.92 5100 resize photo.png 400x300
+ * java cluster.TestClient image 172.31.44.92 5100 rotate photo.png 90
+ * java cluster.TestClient image 172.31.44.92 5100 thumbnail photo.png 200
  *
- *   java cluster.TestClient base64 172.31.44.92 5100 encode "hello world"
- *   java cluster.TestClient base64 172.31.44.92 5100 decode "aGVsbG8gd29ybGQ="
+ * java cluster.TestClient base64 172.31.44.92 5100 encode "hello world"
+ * java cluster.TestClient base64 172.31.44.92 5100 decode "aGVsbG8gd29ybGQ="
  *
- *   java cluster.TestClient compression 172.31.44.92 5100 compress "hello world"
- *   java cluster.TestClient compression 172.31.44.92 5100 decompress "H4sIAAAAAAAA..."
+ * java cluster.TestClient compression 172.31.44.92 5100 compress "hello world"
+ * java cluster.TestClient compression 172.31.44.92 5100 decompress
+ * "H4sIAAAAAAAA..."
  *
- *   java cluster.TestClient hmac 172.31.44.92 5100 verify "hello world"
- *   java cluster.TestClient hmac 172.31.44.92 5100 verify "hello world" <signature>
+ * java cluster.TestClient hmac 172.31.44.92 5100 verify "hello world"
+ * java cluster.TestClient hmac 172.31.44.92 5100 verify "hello world"
+ * <signature>
  */
 public class TestClient2 {
 
@@ -110,7 +112,8 @@ public class TestClient2 {
 
     private static void runCsv(String host, int port, String[] args) throws Exception {
         if (args.length < 5) {
-            System.err.println("Usage: java cluster.TestClient csv <serverHost> <serverPort> <all|mean|median|min|max|stddev> <file.csv>");
+            System.err.println(
+                    "Usage: java cluster.TestClient csv <serverHost> <serverPort> <all|mean|median|min|max|stddev> <file.csv>");
             return;
         }
 
@@ -138,7 +141,8 @@ public class TestClient2 {
 
     private static void runImage(String host, int port, String[] args) throws Exception {
         if (args.length < 5) {
-            System.err.println("Usage: java cluster.TestClient image <serverHost> <serverPort> <grayscale|resize|rotate|thumbnail> <imageFile> [params]");
+            System.err.println(
+                    "Usage: java cluster.TestClient image <serverHost> <serverPort> <grayscale|resize|rotate|thumbnail> <imageFile> [params]");
             return;
         }
 
@@ -172,7 +176,8 @@ public class TestClient2 {
 
     private static void runBase64(String host, int port, String[] args) throws Exception {
         if (args.length < 5) {
-            System.err.println("Usage: java cluster.TestClient base64 <serverHost> <serverPort> <encode|decode> <text>");
+            System.err
+                    .println("Usage: java cluster.TestClient base64 <serverHost> <serverPort> <encode|decode> <text>");
             return;
         }
 
@@ -199,7 +204,8 @@ public class TestClient2 {
 
     private static void runCompression(String host, int port, String[] args) throws Exception {
         if (args.length < 5) {
-            System.err.println("Usage: java cluster.TestClient compression <serverHost> <serverPort> <compress|decompress> <text>");
+            System.err.println(
+                    "Usage: java cluster.TestClient compression <serverHost> <serverPort> <compress|decompress> <text>");
             return;
         }
 
@@ -226,7 +232,8 @@ public class TestClient2 {
 
     private static void runHmac(String host, int port, String[] args) throws Exception {
         if (args.length < 5) {
-            System.err.println("Usage: java cluster.TestClient hmac <serverHost> <serverPort> verify <message> [signature]");
+            System.err.println(
+                    "Usage: java cluster.TestClient hmac <serverHost> <serverPort> verify <message> [signature]");
             return;
         }
 
@@ -258,10 +265,11 @@ public class TestClient2 {
     // CORE SERVER CALL
     // =========================
 
-    private static ServerResponse sendBinaryRequest(String host, int port, String request, byte[] payload) throws Exception {
+    private static ServerResponse sendBinaryRequest(String host, int port, String request, byte[] payload)
+            throws Exception {
         try (Socket socket = new Socket(host, port);
-             DataOutputStream out = new DataOutputStream(socket.getOutputStream());
-             DataInputStream in = new DataInputStream(socket.getInputStream())) {
+                DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+                DataInputStream in = new DataInputStream(socket.getInputStream())) {
 
             out.writeUTF(request);
             if (!"LIST".equalsIgnoreCase(request)) {
@@ -319,10 +327,13 @@ public class TestClient2 {
     private static void printUsage() {
         System.out.println("Usage:");
         System.out.println("  java cluster.TestClient list <serverHost> <serverPort>");
-        System.out.println("  java cluster.TestClient csv <serverHost> <serverPort> <all|mean|median|min|max|stddev> <file.csv>");
-        System.out.println("  java cluster.TestClient image <serverHost> <serverPort> <grayscale|resize|rotate|thumbnail> <imageFile> [params]");
+        System.out.println(
+                "  java cluster.TestClient csv <serverHost> <serverPort> <all|mean|median|min|max|stddev> <file.csv>");
+        System.out.println(
+                "  java cluster.TestClient image <serverHost> <serverPort> <grayscale|resize|rotate|thumbnail> <imageFile> [params]");
         System.out.println("  java cluster.TestClient base64 <serverHost> <serverPort> <encode|decode> <text>");
-        System.out.println("  java cluster.TestClient compression <serverHost> <serverPort> <compress|decompress> <text>");
+        System.out.println(
+                "  java cluster.TestClient compression <serverHost> <serverPort> <compress|decompress> <text>");
         System.out.println("  java cluster.TestClient hmac <serverHost> <serverPort> verify <message> [signature]");
     }
 

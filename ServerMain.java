@@ -1,5 +1,3 @@
-package cluster;
-
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
@@ -11,8 +9,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ServerMain {
 
     // Server ports
-    private static final int SERVER_TCP_PORT = 5100;
-    private static final int SERVER_UDP_PORT = 5001;
+    private static int SERVER_TCP_PORT;
+    private static int SERVER_UDP_PORT;
 
     private static final long DEAD_AFTER_MS = 120_000;
     private static final int CONNECT_TIMEOUT_MS = 10_000;
@@ -22,6 +20,19 @@ public class ServerMain {
     private static final ConcurrentHashMap<String, AtomicInteger> rrCounters = new ConcurrentHashMap<>();
 
     public static void main(String[] args) throws Exception {
+
+        // Load config.properties
+        Properties config = new Properties();
+        try (FileInputStream fis = new FileInputStream("config.properties")) {
+            config.load(fis);
+        } catch (IOException e) {
+            System.out.println("Failed to load config.properties");
+            e.printStackTrace();
+            return; // exit if config not found
+        }
+
+        SERVER_TCP_PORT = Integer.parseInt(config.getProperty("server.tcp.port"));
+        SERVER_UDP_PORT = Integer.parseInt(config.getProperty("server.udp.port"));
         System.out.println("QU Cluster Server starting...");
         System.out.println("TCP (clients): " + SERVER_TCP_PORT);
         System.out.println("UDP (heartbeats): " + SERVER_UDP_PORT);
@@ -53,8 +64,7 @@ public class ServerMain {
                         packet.getData(),
                         packet.getOffset(),
                         packet.getLength(),
-                        StandardCharsets.UTF_8
-                ).trim();
+                        StandardCharsets.UTF_8).trim();
 
                 String nodeId;
                 String service;
@@ -177,7 +187,10 @@ public class ServerMain {
         } catch (Exception e) {
             System.err.println("Client handler error (" + clientAddr + "): " + e.getMessage());
         } finally {
-            try { clientSocket.close(); } catch (Exception ignored) {}
+            try {
+                clientSocket.close();
+            } catch (Exception ignored) {
+            }
             System.out.println("Client disconnected: " + clientAddr);
         }
     }
@@ -193,7 +206,8 @@ public class ServerMain {
         String line;
         while ((line = in.readLine()) != null) {
             line = line.trim();
-            if (line.isEmpty()) continue;
+            if (line.isEmpty())
+                continue;
 
             if ("LIST".equalsIgnoreCase(line)) {
                 out.write("OK|" + buildServiceListing());
@@ -283,16 +297,16 @@ public class ServerMain {
 
         /*
          * Binary client protocol:
-         *   writeUTF("LIST")
+         * writeUTF("LIST")
          * or
-         *   writeUTF("RUN|SERVICE|OP|PARAMS")
-         *   writeLong(payload.length)
-         *   write(payload)
+         * writeUTF("RUN|SERVICE|OP|PARAMS")
+         * writeLong(payload.length)
+         * write(payload)
          *
          * Response:
-         *   writeUTF(status)
-         *   writeLong(result.length)
-         *   write(result)
+         * writeUTF(status)
+         * writeLong(result.length)
+         * write(result)
          */
 
         String request = in.readUTF();
@@ -345,7 +359,8 @@ public class ServerMain {
 
                 out.writeUTF(resp.status);
                 out.writeLong(resp.payload.length);
-                if (resp.payload.length > 0) out.write(resp.payload);
+                if (resp.payload.length > 0)
+                    out.write(resp.payload);
                 out.flush();
                 return;
             }
@@ -415,29 +430,31 @@ public class ServerMain {
             s.setSoTimeout(SOCKET_TIMEOUT_MS);
 
             try (
-                    BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
-                    BufferedWriter out = new BufferedWriter(new OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8))
-            ) {
+                    BufferedReader in = new BufferedReader(
+                            new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
+                    BufferedWriter out = new BufferedWriter(
+                            new OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8))) {
                 out.write(requestLine);
                 out.newLine();
                 out.flush();
 
                 String resp = in.readLine();
-                if (resp == null) throw new IOException("Node closed connection without response");
+                if (resp == null)
+                    throw new IOException("Node closed connection without response");
                 return resp.trim();
             }
         }
     }
 
-    private static BinaryNodeResponse callBinaryServiceNode(NodeInfo ni, String request, byte[] payload) throws Exception {
+    private static BinaryNodeResponse callBinaryServiceNode(NodeInfo ni, String request, byte[] payload)
+            throws Exception {
         try (Socket s = new Socket()) {
             s.connect(new InetSocketAddress(ni.ip, ni.tcpPort), CONNECT_TIMEOUT_MS);
             s.setSoTimeout(SOCKET_TIMEOUT_MS);
 
             try (
                     DataInputStream in = new DataInputStream(s.getInputStream());
-                    DataOutputStream out = new DataOutputStream(s.getOutputStream())
-            ) {
+                    DataOutputStream out = new DataOutputStream(s.getOutputStream())) {
                 out.writeUTF(request);
                 out.writeLong(payload.length);
                 out.write(payload);
@@ -450,7 +467,8 @@ public class ServerMain {
                 }
 
                 byte[] result = new byte[(int) resultLen];
-                if (resultLen > 0) in.readFully(result);
+                if (resultLen > 0)
+                    in.readFully(result);
 
                 return new BinaryNodeResponse(status, result);
             }
@@ -471,7 +489,8 @@ public class ServerMain {
             }
         }
 
-        if (alive.isEmpty()) return null;
+        if (alive.isEmpty())
+            return null;
 
         String key = service.toUpperCase(Locale.ROOT);
         rrCounters.putIfAbsent(key, new AtomicInteger(0));
@@ -489,7 +508,8 @@ public class ServerMain {
             }
         }
 
-        if (byService.isEmpty()) return "No services available";
+        if (byService.isEmpty())
+            return "No services available";
 
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<String, List<NodeInfo>> e : byService.entrySet()) {
@@ -499,7 +519,8 @@ public class ServerMain {
             for (int i = 0; i < list.size(); i++) {
                 NodeInfo ni = list.get(i);
                 sb.append(ni.nodeId).append("@").append(ni.ip).append(":").append(ni.tcpPort);
-                if (i < list.size() - 1) sb.append(", ");
+                if (i < list.size() - 1)
+                    sb.append(", ");
             }
             sb.append(" ; ");
         }
@@ -513,7 +534,8 @@ public class ServerMain {
         if (start != -1) {
             start += stringPattern.length();
             int end = json.indexOf("\"", start);
-            if (end != -1) return json.substring(start, end);
+            if (end != -1)
+                return json.substring(start, end);
         }
 
         String numberPattern = "\"" + key + "\":";

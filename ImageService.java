@@ -4,13 +4,15 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.*;
+import java.util.Properties;
 import java.util.Random;
 
 /**
  * ImageService.java
  * by Andrew Goodman
  * 
- * This service handles image transformations like grayscale, resize, rotate, and thumbnails.
+ * This service handles image transformations like grayscale, resize, rotate,
+ * and thumbnails.
  * 
  * How it works:
  * 1. Sends UDP heartbeats to the server every 15-30 seconds
@@ -21,18 +23,38 @@ public class ImageService {
 
     // Service configuration
     static String NODE_ID = "ImageNode1";
-    static int MY_PORT = 5101;                    // Port this service listens on
-    static String SERVER_IP = "127.0.0.1";        // Main server address
-    static int SERVER_UDP_PORT = 5001;            // Port for sending heartbeats
-    
+    private static int MY_PORT;
+    private static String SERVER_IP;
+    private static int SERVER_UDP_PORT;
+
     static volatile boolean running = true;
 
     public static void main(String[] args) {
+
+        // Load config.properties
+        Properties config = new Properties();
+        try (FileInputStream fis = new FileInputStream("config.properties")) {
+            config.load(fis);
+        } catch (IOException e) {
+            System.out.println("Failed to load config.properties");
+            e.printStackTrace();
+            return; // exit if config not found
+        }
+
+        // Initialize variables from config
+        MY_PORT = Integer.parseInt(config.getProperty("my.port"));
+        SERVER_IP = config.getProperty("server.ip");
+        SERVER_UDP_PORT = Integer.parseInt(config.getProperty("server.udp.port"));
+
         // Allow command line args to override defaults
-        if (args.length >= 1) NODE_ID = args[0];
-        if (args.length >= 2) MY_PORT = Integer.parseInt(args[1]);
-        if (args.length >= 3) SERVER_IP = args[2];
-        if (args.length >= 4) SERVER_UDP_PORT = Integer.parseInt(args[3]);
+        if (args.length >= 1)
+            NODE_ID = args[0];
+        if (args.length >= 2)
+            MY_PORT = Integer.parseInt(args[1]);
+        if (args.length >= 3)
+            SERVER_IP = args[2];
+        if (args.length >= 4)
+            SERVER_UDP_PORT = Integer.parseInt(args[3]);
 
         System.out.println("=== IMAGE TRANSFORM SERVICE ===");
         System.out.println("Node ID: " + NODE_ID);
@@ -42,7 +64,7 @@ public class ImageService {
 
         // Start heartbeat thread in the background
         new Thread(ImageService::sendHeartbeats).start();
-        
+
         // Listen for incoming task requests
         listenForTasks();
     }
@@ -93,7 +115,7 @@ public class ImageService {
         }
     }
 
-    // Handles a single image processing request 
+    // Handles a single image processing request
     static void handleTask(Socket client) {
         try {
             DataInputStream in = new DataInputStream(client.getInputStream());
@@ -151,13 +173,13 @@ public class ImageService {
                     result = toGrayscale(image);
                     break;
                 case "RESIZE":
-                    result = resize(image, params);  // params format: "800x600"
+                    result = resize(image, params); // params format: "800x600"
                     break;
                 case "ROTATE":
-                    result = rotate(image, Integer.parseInt(params));  // params: degrees (90, 180, 270)
+                    result = rotate(image, Integer.parseInt(params)); // params: degrees (90, 180, 270)
                     break;
                 case "THUMBNAIL":
-                    result = thumbnail(image, Integer.parseInt(params));  // params: max size
+                    result = thumbnail(image, Integer.parseInt(params)); // params: max size
                     break;
                 default:
                     System.err.println("Unknown operation: " + operation);
@@ -167,10 +189,10 @@ public class ImageService {
             // Convert result back to bytes
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ImageIO.write(result, "png", baos);
-            
+
             // Display before/after comparison window
             showBeforeAfter(image, result, operation);
-            
+
             return baos.toByteArray();
 
         } catch (Exception e) {
@@ -180,20 +202,20 @@ public class ImageService {
         }
     }
 
-    // Image Operations 
+    // Image Operations
 
     // Converts image to grayscale using luminosity formula
     static BufferedImage toGrayscale(BufferedImage img) {
         int w = img.getWidth(), h = img.getHeight();
         BufferedImage gray = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
-        
+
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 int rgb = img.getRGB(x, y);
                 int r = (rgb >> 16) & 0xFF;
                 int g = (rgb >> 8) & 0xFF;
                 int b = rgb & 0xFF;
-                int grayVal = (int)(0.299*r + 0.587*g + 0.114*b);  // Luminosity formula
+                int grayVal = (int) (0.299 * r + 0.587 * g + 0.114 * b); // Luminosity formula
                 int grayRGB = (grayVal << 16) | (grayVal << 8) | grayVal;
                 gray.setRGB(x, y, grayRGB);
             }
@@ -206,7 +228,7 @@ public class ImageService {
         String[] dims = params.split("x");
         int newW = Integer.parseInt(dims[0]);
         int newH = Integer.parseInt(dims[1]);
-        
+
         BufferedImage resized = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = resized.createGraphics();
         g.drawImage(img, 0, 0, newW, newH, null);
@@ -219,7 +241,7 @@ public class ImageService {
         int w = img.getWidth(), h = img.getHeight();
         int newW = (degrees == 90 || degrees == 270) ? h : w;
         int newH = (degrees == 90 || degrees == 270) ? w : h;
-        
+
         BufferedImage rotated = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = rotated.createGraphics();
         g.translate((newW - w) / 2.0, (newH - h) / 2.0);
@@ -233,8 +255,8 @@ public class ImageService {
     static BufferedImage thumbnail(BufferedImage img, int maxSize) {
         int w = img.getWidth(), h = img.getHeight();
         double scale = Math.min((double) maxSize / w, (double) maxSize / h);
-        int newW = (int)(w * scale);
-        int newH = (int)(h * scale);
+        int newW = (int) (w * scale);
+        int newH = (int) (h * scale);
         return resize(img, newW + "x" + newH);
     }
 
@@ -243,27 +265,27 @@ public class ImageService {
         SwingUtilities.invokeLater(() -> {
             JFrame frame = new JFrame("Image Transform: " + operation);
             frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-            
+
             // Scale images to fit in window
             Image scaledBefore = scaleToFit(before, 400);
             Image scaledAfter = scaleToFit(after, 400);
-            
+
             JPanel panel = new JPanel(new GridLayout(1, 2, 10, 10));
             panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-            
+
             // Left panel shows original
             JPanel beforePanel = new JPanel(new BorderLayout());
             beforePanel.add(new JLabel("BEFORE", JLabel.CENTER), BorderLayout.NORTH);
             beforePanel.add(new JLabel(new ImageIcon(scaledBefore)), BorderLayout.CENTER);
-            
+
             // Right panel shows result
             JPanel afterPanel = new JPanel(new BorderLayout());
             afterPanel.add(new JLabel("AFTER: " + operation, JLabel.CENTER), BorderLayout.NORTH);
             afterPanel.add(new JLabel(new ImageIcon(scaledAfter)), BorderLayout.CENTER);
-            
+
             panel.add(beforePanel);
             panel.add(afterPanel);
-            
+
             frame.add(panel);
             frame.pack();
             frame.setLocationRelativeTo(null);
@@ -274,10 +296,11 @@ public class ImageService {
     // Scales image to fit within maxSize while keeping aspect ratio
     static Image scaleToFit(BufferedImage img, int maxSize) {
         int w = img.getWidth(), h = img.getHeight();
-        if (w <= maxSize && h <= maxSize) return img;
+        if (w <= maxSize && h <= maxSize)
+            return img;
         double scale = Math.min((double) maxSize / w, (double) maxSize / h);
-        int newW = (int)(w * scale);
-        int newH = (int)(h * scale);
+        int newW = (int) (w * scale);
+        int newH = (int) (h * scale);
         return img.getScaledInstance(newW, newH, Image.SCALE_SMOOTH);
     }
 }
