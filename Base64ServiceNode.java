@@ -2,11 +2,22 @@ import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.Random;
 import java.util.Properties;
+import java.util.Random;
 
 /**
  * Service Node: Base64 Encode / Decode
+ *
+ * Binary protocol (same as CSV and Image services):
+ *   Request:  readUTF("ENCODE|") or readUTF("DECODE|")
+ *             readLong(dataSize)
+ *             readFully(data)
+ *   Response: writeUTF("OK" or "ERROR")
+ *             writeLong(resultSize)
+ *             write(result)
+ *
+ * ENCODE: takes raw bytes (e.g. a file), returns base64 text as bytes.
+ * DECODE: takes base64 text as bytes, returns decoded raw bytes.
  */
 public class Base64ServiceNode {
 
@@ -63,60 +74,58 @@ public class Base64ServiceNode {
     }
 
     private static void handleClient(Socket socket) {
+        try {
+            DataInputStream in = new DataInputStream(socket.getInputStream());
+            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
 
-        try (
-                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            // Read operation
+            String request = in.readUTF();
+            String[] parts = request.split("\\|");
+            String command = parts[0].toUpperCase();
+            System.out.println("[Task] Operation: " + command);
 
-                BufferedWriter out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()))) {
+            // Read data payload (file bytes)
+            long size = in.readLong();
+            byte[] data = new byte[(int) size];
+            in.readFully(data);
+            System.out.println("[Task] Received " + size + " bytes");
 
-            /*
-             * Protocol:
-             * ENCODE|text
-             * DECODE|base64text
-             */
-
-            String line = in.readLine();
-
-            if (line == null)
-                return;
-
-            String[] parts = line.split("\\|", 2);
-
-            String command = parts[0];
-            String data = parts.length > 1 ? parts[1] : "";
-
-            String result;
+            byte[] result;
 
             if ("ENCODE".equals(command)) {
-
-                result = Base64.getEncoder()
-                        .encodeToString(data.getBytes(StandardCharsets.UTF_8));
+                // Raw bytes in -> base64 text out
+                String encoded = Base64.getEncoder().encodeToString(data);
+                result = encoded.getBytes(StandardCharsets.UTF_8);
+                System.out.println("[Task] Encoded " + size + " bytes -> " + result.length + " chars of base64");
 
             } else if ("DECODE".equals(command)) {
-
-                byte[] decoded = Base64.getDecoder().decode(data);
-
-                result = new String(decoded, StandardCharsets.UTF_8);
+                // Base64 text in -> raw bytes out
+                String base64Text = new String(data, StandardCharsets.UTF_8).trim();
+                result = Base64.getDecoder().decode(base64Text);
+                System.out.println("[Task] Decoded " + size + " chars of base64 -> " + result.length + " bytes");
 
             } else {
-
-                result = "ERROR|Unknown command";
+                String error = "Unknown command: " + command;
+                out.writeUTF("ERROR");
+                out.writeLong(error.length());
+                out.write(error.getBytes());
+                out.flush();
+                socket.close();
+                return;
             }
 
+            out.writeUTF("OK");
+            out.writeLong(result.length);
             out.write(result);
-            out.newLine();
             out.flush();
+            System.out.println("[Task] Sent result back\n");
+
+            socket.close();
 
         } catch (Exception e) {
-
-            System.err.println("Client error: " + e.getMessage());
-
+            System.err.println("Task error: " + e.getMessage());
         } finally {
-
-            try {
-                socket.close();
-            } catch (Exception ignored) {
-            }
+            try { socket.close(); } catch (Exception ignored) {}
         }
     }
 

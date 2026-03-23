@@ -1,13 +1,25 @@
 import java.io.*;
 import java.net.*;
-import java.util.Base64;
+import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
-import java.util.Properties;
 
+/**
+ * CompressionServiceNode — GZIP compress/decompress service.
+ *
+ * Binary protocol (same as CSV and Image services):
+ *   Request:  readUTF("COMPRESS|") or readUTF("DECOMPRESS|")
+ *             readLong(dataSize)
+ *             readFully(data)
+ *   Response: writeUTF("OK" or "ERROR")
+ *             writeLong(resultSize)
+ *             write(result)
+ *
+ * Works with raw file bytes — not just text strings.
+ */
 public class CompressionServiceNode {
 
     private static int TCP_PORT;
@@ -39,102 +51,81 @@ public class CompressionServiceNode {
 
         while (true) {
             Socket client = serverSocket.accept();
-            handleClient(client);
+            new Thread(() -> handleClient(client)).start();
         }
     }
 
     private static void handleClient(Socket client) {
-
         try {
+            DataInputStream in = new DataInputStream(client.getInputStream());
+            DataOutputStream out = new DataOutputStream(client.getOutputStream());
 
-            BufferedReader in = new BufferedReader(
-                    new InputStreamReader(client.getInputStream()));
+            // Read operation
+            String request = in.readUTF();
+            String[] parts = request.split("\\|");
+            String operation = parts[0].toUpperCase();
+            System.out.println("[Task] Operation: " + operation);
 
-            PrintWriter out = new PrintWriter(
-                    client.getOutputStream(), true);
+            // Read data payload (file bytes)
+            long size = in.readLong();
+            byte[] data = new byte[(int) size];
+            in.readFully(data);
+            System.out.println("[Task] Received " + size + " bytes");
 
-            String body = in.readLine();
+            byte[] result;
 
-            String action = extractValue(body, "action");
-            String data = extractValue(body, "data");
-
-            if (action.equals("compress")) {
-
-                String result = compress(data);
-                out.println(result);
-                System.out.println("Compressed data sent");
-
-            } else if (action.equals("decompress")) {
-
-                String result = decompress(data);
-                out.println(result);
-                System.out.println("Decompressed data sent");
-
+            if ("COMPRESS".equals(operation)) {
+                result = compress(data);
+                System.out.println("[Task] Compressed " + size + " -> " + result.length + " bytes");
+            } else if ("DECOMPRESS".equals(operation)) {
+                result = decompress(data);
+                System.out.println("[Task] Decompressed " + size + " -> " + result.length + " bytes");
             } else {
-
-                out.println("Invalid action");
+                String error = "Unknown operation: " + operation;
+                out.writeUTF("ERROR");
+                out.writeLong(error.length());
+                out.write(error.getBytes());
+                out.flush();
+                client.close();
+                return;
             }
+
+            out.writeUTF("OK");
+            out.writeLong(result.length);
+            out.write(result);
+            out.flush();
+            System.out.println("[Task] Sent result back\n");
 
             client.close();
 
         } catch (Exception e) {
+            System.err.println("Task error: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    // GZIP COMPRESS
-    private static String compress(String str) throws Exception {
-
+    // GZIP COMPRESS — works on raw bytes (any file type)
+    private static byte[] compress(byte[] data) throws Exception {
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-
         GZIPOutputStream gzip = new GZIPOutputStream(byteStream);
-
-        gzip.write(str.getBytes());
-
+        gzip.write(data);
         gzip.close();
-
-        return Base64.getEncoder().encodeToString(byteStream.toByteArray());
+        return byteStream.toByteArray();
     }
 
-    // GZIP DECOMPRESS
-    private static String decompress(String compressed) throws Exception {
-
-        byte[] decoded = Base64.getDecoder().decode(compressed);
-
-        ByteArrayInputStream byteStream = new ByteArrayInputStream(decoded);
-
+    // GZIP DECOMPRESS — works on raw bytes
+    private static byte[] decompress(byte[] compressed) throws Exception {
+        ByteArrayInputStream byteStream = new ByteArrayInputStream(compressed);
         GZIPInputStream gzip = new GZIPInputStream(byteStream);
 
-        BufferedReader reader = new BufferedReader(new InputStreamReader(gzip));
-
-        StringBuilder output = new StringBuilder();
-
-        String line;
-
-        while ((line = reader.readLine()) != null) {
-            output.append(line);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[4096];
+        int len;
+        while ((len = gzip.read(buffer)) != -1) {
+            output.write(buffer, 0, len);
         }
-
-        return output.toString();
-    }
-
-    private static String extractValue(String json, String key) {
-
-        if (json == null)
-            return "";
-
-        String pattern = "\"" + key + "\":\"";
-
-        int start = json.indexOf(pattern);
-
-        if (start == -1)
-            return "";
-
-        start += pattern.length();
-
-        int end = json.indexOf("\"", start);
-
-        return json.substring(start, end);
+        gzip.close();
+        return output.toByteArray();
     }
 
     // UDP HEARTBEAT
@@ -147,7 +138,7 @@ public class CompressionServiceNode {
 
             try {
 
-                String message = "{\"type\":\"heartbeat\",\"service\":\"compression\",\"port\":3000}";
+                String message = "{\"type\":\"heartbeat\",\"service\":\"compression\",\"port\":" + TCP_PORT + "}";
 
                 byte[] buffer = message.getBytes();
 
